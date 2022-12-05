@@ -5,7 +5,7 @@ Date: 12/5/2022
 Takes token as input and outputs flat telemetry from the TSI server per requestUrl query
 
 PARAMS:
-token = outh token
+token = oauth token
 start_date = data start point
 end_date = data end point
 '''
@@ -13,8 +13,7 @@ end_date = data end point
 import requests
 import os
 
-#TODO request 
-
+### TO CHANGE
 token = '3251LzQBmmZfE2dDrqL8wJGl3GHp'
 
 #Query PARAMS
@@ -29,7 +28,7 @@ def get_telemetry_flat(token, device_id, start_date, end_date):
   requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/flat-format?device_id={device_id}&start_date={start_date}&end_date={end_date}&telem[]=location&telem[]=is_indoor&telem[]=mcpm1x0&telem[]=ncpm1x0&telem[]=tpsize&telem[]=temperature&telem[]=rh"
   requestHeaders = {
     "Accept": "application/json",
-    "Authorization": "Bearer " + token
+    "Authorization": f"Bearer {token}"
   }
 
   response = requests.get(requestUrl, headers=requestHeaders)

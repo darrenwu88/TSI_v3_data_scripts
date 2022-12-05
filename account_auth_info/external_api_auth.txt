@@ -1,0 +1,11 @@
+Use Key/Secret Pair to access custom oauth tokens through client_token.py script. This will allow us to GET data from v3.
+
+
+1. Mike Bergin's Authentication Key for External v3 API
+    Key (client_key): wQkF32I0fKGFmEDBaqMYIqAue09awqYP
+    Secret (client_secret): FUH0HN78w4WVPpWP
+
+2. Country 1
+3. 
+4. 
+5. Country N
