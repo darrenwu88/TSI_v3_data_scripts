@@ -20,7 +20,7 @@ client_key = 'ZEMIbhqwCe7MIVfGeq1pNA9nqAGpvpcVuaw9XEEmRXtgGt1I'
 client_secret = 'ayuIiRntou61plHwEtasfC4HnxBqG02svGGhaUSszGVBm9PRvn0yNWgUAq5UwpJN'
 token_filename = 'mike_bergin_token.json'
 
-def client_token(client_key, client_secret):
+def client_token(client_key, client_secret) -> None:
     headers = {
         'Accept': 'application/json',
     }
