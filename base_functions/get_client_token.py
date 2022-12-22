@@ -8,7 +8,6 @@ Dumps token data into /client_tokens folder.
 PARAMS:
 client_key = key linked to account in v3
 client_secret = secret linked to account in v3
-token_filename = filename for output data (.json)
 '''
 
 import requests
@@ -18,9 +17,9 @@ import os
 ### TO CHANGE
 client_key = 'ZEMIbhqwCe7MIVfGeq1pNA9nqAGpvpcVuaw9XEEmRXtgGt1I'
 client_secret = 'ayuIiRntou61plHwEtasfC4HnxBqG02svGGhaUSszGVBm9PRvn0yNWgUAq5UwpJN'
-token_filename = 'mike_bergin_token.json'
 
 def client_token(client_key, client_secret) -> None:
+
     headers = {
         'Accept': 'application/json',
     }
@@ -43,8 +42,14 @@ def client_token(client_key, client_secret) -> None:
 
     data = response.json()
 
-    with open(os.path.join(r'./client_tokens', token_filename), 'w') as f:
+    #create output token filename, format = '(DEVELOPER_EMAIL)_token.json'
+    dev_email = data['developer.email']
+    output_token_filename = f'({dev_email})_token.json'
+
+    with open(os.path.join(r'./client_tokens', output_token_filename), 'w') as f:
         json.dump(data, f)
+    
+    print('Script completed. File located in /client_tokens folder')
 
 if __name__ == "__main__":
   client_token(client_key, client_secret)

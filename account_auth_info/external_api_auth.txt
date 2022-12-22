@@ -5,6 +5,8 @@ Use Key/Secret Pair to access custom oauth tokens through client_token.py script
     Key (client_key): wQkF32I0fKGFmEDBaqMYIqAue09awqYP
     Secret (client_secret): FUH0HN78w4WVPpWP
 
+    String: 'client_id=wQkF32I0fKGFmEDBaqMYIqAue09awqYP&client_secret=FUH0HN78w4WVPpWP'
+
 2. Country 1
 3. 
 4. 

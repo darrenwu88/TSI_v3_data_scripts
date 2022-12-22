@@ -2,28 +2,27 @@
 Author: Darren Wu
 Date: 12/5/2022 
 
+device_list()
 Takes token as input and outputs list of TSI devices associated with the respective account
 
-PARAMS:
-token = oauth token
-country = country that devices are associated with
+PARAMS/INPUTS:
+token_json_file: name of json file with token
 '''
 
 import requests
 import os
 import pandas as pd
 import json
-
 #library for finding country
 import reverse_geocode
 
-### TO CHANGE
-token = 'jOEiYd8iKpaDTmMrrN2OSpDdsfuD'
-country = 'Duke'
+#PARAMS
+token_json_file = '(mike.bergin@duke.edu)_token.json'
 
 #Query PARAMS
 #https://developers.tsilink.com/docs/tsi-external-api/1/routes/devices/legacy-format/get
 
+#shorten name based off de Foy's rules
 def shorten_name(friendly_name) -> str:
     return ''
     
@@ -44,7 +43,8 @@ def shorten_name(friendly_name) -> str:
         } else {
         stid = sprintf('%s_%s',tolower(stctry),stid)
     '''
-    
+
+#get country based of coords
 def get_country(coords) -> str:
     #search requires list input
     location = reverse_geocode.search(coords)
@@ -52,6 +52,7 @@ def get_country(coords) -> str:
 
     return country
 
+#append new countries to master device list
 def append_device_list(response_json) -> None:
     #open master_device_list in subdirectory
     df = pd.read_csv(os.path.join(r'./master_device_list', 'master_device_list.csv'))
@@ -63,7 +64,7 @@ def append_device_list(response_json) -> None:
         friendly_name = device['metadata']['friendlyName']
 
         #list input
-        coords = [(float(device['metadata']['longitude']), float(device['metadata']['latitude']))]
+        coords = [(float(device['metadata']['latitude']), float(device['metadata']['longitude']))]
 
         #get country based off coords
         country = get_country(coords)
@@ -89,7 +90,17 @@ def append_device_list(response_json) -> None:
     df.to_csv(os.path.join(r'./master_device_list', 'master_device_list.csv'), index = False)
 
 
-def device_list(token, country) -> None:
+def device_list(token_json_file) -> None:
+
+    #get token from json file
+    token_PATH = fr'./client_tokens/{token_json_file}'
+    json_file = open(token_PATH)
+    #get data inside json file
+    data = json.load(json_file)
+    
+    token = data['access_token']
+
+    #request v3 data using token
     requestUrl = "https://api-prd.tsilink.com/api/v3/external/devices/legacy-format?include_shared=true"
     requestHeaders = {
     "Authorization": f"Bearer {token}",
@@ -97,11 +108,17 @@ def device_list(token, country) -> None:
     }
 
     response = requests.get(requestUrl, headers=requestHeaders)
+    response_json = response.json()
 
-    append_device_list(response.json())
+    append_device_list(response_json)
+    
 
-    with open(os.path.join(r'./device_list_by_country', f'{country}_device_list.json'), "w") as outfile:
+    #get developer email for output file naming schema
+    dev_email = data['developer.email']
+
+    #we want the output file to be a device list (identifiable by dev email), format = '(DEVELOPER EMAIL)_device_list.json'
+    with open(os.path.join(r'./device_list_by_developer_user', f'{dev_email}_device_list.json'), "w") as outfile:
         outfile.write(response.text)
 
 if __name__ == "__main__":
-    device_list(token, country)
+    device_list(token_json_file)
