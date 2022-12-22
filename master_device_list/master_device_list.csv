@@ -1,3 +1,1 @@
-cloud_account_id,cloud_device_id,serial_number,country,friendly_name,short_name
-c4257c0qi9clu8nikfgg,c50fv8u7kn8vcc9cd6cg,81432039074,United States,Duke 2,
-c4257c0qi9clu8nikfgg,c5e99utomcjt2d3sngc0,81432039072,United States,Duke 3,
+cloud_account_id,cloud_device_id,serial_number,country,friendly_name,short_name,dev_email

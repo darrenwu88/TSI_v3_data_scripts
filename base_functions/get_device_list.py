@@ -53,7 +53,7 @@ def get_country(coords) -> str:
     return country
 
 #append new countries to master device list
-def append_device_list(response_json) -> None:
+def append_device_list(response_json, dev_email) -> None:
     #open master_device_list in subdirectory
     df = pd.read_csv(os.path.join(r'./master_device_list', 'master_device_list.csv'))
     
@@ -110,11 +110,10 @@ def device_list(token_json_file) -> None:
     response = requests.get(requestUrl, headers=requestHeaders)
     response_json = response.json()
 
-    append_device_list(response_json)
-    
-
     #get developer email for output file naming schema
     dev_email = data['developer.email']
+
+    append_device_list(response_json, dev_email)
 
     #we want the output file to be a device list (identifiable by dev email), format = '(DEVELOPER EMAIL)_device_list.json'
     with open(os.path.join(r'./device_list_by_developer_user', f'{dev_email}_device_list.json'), "w") as outfile:
