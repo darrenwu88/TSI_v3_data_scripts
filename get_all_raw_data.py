@@ -41,10 +41,15 @@ Main inputs: developer key(s), secret(s), data date params (start_date & end_dat
    the main directory as output_raw_telemetry.csv
 
 
+OBJECTIVES for this week
+
 Keep updated/merged file for each device (run by run)
 #talk with mike and prakash about this as well
 
 USER Types for script use:
+TODO
+
+Dialog input box for users:
 TODO
 
 upload v2 code on github:
@@ -70,9 +75,6 @@ import pandas as pd
 from datetime import datetime
 import numpy as np
 import reverse_geocode
-
-###Create dialog box as input for PARAMS
-#give choice to delete indiv. raw files or not
 
 #PARAMS
 secrets_PATH = r'./account_auth_info/secrets.csv'
