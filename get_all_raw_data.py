@@ -51,7 +51,8 @@ upload v2 code on github:
 done
 
 think about lat/long change (calibration vs deployed locations) for each device:
-ANSWER: consider /indoor vs /outdoor flags that TSI already has
+ANSWER: consider /indoor vs /outdoor flags that TSI already has'
+done
 
 maybe changing friendlyName for each location change?
 done
@@ -63,18 +64,15 @@ import os
 import json
 import glob 
 import pandas as pd
+from datetime import datetime
+import numpy as np
 import reverse_geocode
 
 ###Create dialog box as input for PARAMS
 #give choice to delete indiv. raw files or not
 
-client_key = 'ZEMIbhqwCe7MIVfGeq1pNA9nqAGpvpcVuaw9XEEmRXtgGt1I'
-client_secret = 'ayuIiRntou61plHwEtasfC4HnxBqG02svGGhaUSszGVBm9PRvn0yNWgUAq5UwpJN'
-
-#If a user has multiple keys/secrets, I was thinking of keeping that data in a dictionary
-#and feed the dictionary into the function so it can take in all the keys/secrets
 #PARAMS
-database = {client_key: client_secret}
+secrets_PATH = r'./account_auth_info/secrets.csv'
 start_date = '2022-12-02T15:00:00Z'
 end_date = '2022-12-22T15:00:00Z'
 
@@ -274,19 +272,53 @@ def flatten_json(json_file):
     #dump csv into directory
     raw_df.to_csv(os.path.join(r'./flat_telemetry_csv_RAW', f'{file_name}.csv'), index = False)
 
+def level_zero_raw(raw_df):
+    #set data type for serial numbers
+    raw_df['serial'] = raw_df['serial'].astype(np.int64)
+    #set data type for timestamps
+    raw_df['timestamp'] = pd.to_datetime(raw_df['timestamp'], format='%Y-%m-%d %H:%M:%S')
+    return raw_df
+
+def level_zero_hourly(lvl0_raw_df):
+    #group df by specific sensor and hour of data
+    lvl0_raw_df['timestamp'] = pd.to_datetime(lvl0_raw_df['timestamp'], format='%Y-%m-%d %H:%M:%S')
+    grouped_df = lvl0_raw_df.groupby(['serial', lvl0_raw_df['timestamp'].dt.year, lvl0_raw_df['timestamp'].dt.month, lvl0_raw_df['timestamp'].dt.day, lvl0_raw_df['timestamp'].dt.hour])
+    
+    grouped_df = grouped_df.filter(lambda x: len(x) * (x['timestamp'].diff().value_counts(dropna = True).idxmax().total_seconds() / 60) >= 45)  
+    grouped_df.reset_index(drop = True, inplace = True)
+
+    #all cols 
+    '''
+    cloud_account_id,cloud_device_id,is_indoor,is_public,latitude,longitude,
+    mcpm10,mcpm10_aqi,mcpm1x0,mcpm2x5,mcpm2x5_aqi,mcpm4x0,model,ncpm0x5,ncpm10,
+    ncpm1x0,ncpm2x5,ncpm4x0,rh,serial,temperature,timestamp,tpsize
+    '''
+
+    grouped_hourly_df = grouped_df.groupby(['serial', grouped_df['timestamp'].dt.year, grouped_df['timestamp'].dt.month, grouped_df['timestamp'].dt.day, grouped_df['timestamp'].dt.hour])
+    grouped_hourly_df = grouped_hourly_df[['mcpm10','mcpm10_aqi','mcpm1x0','mcpm2x5','mcpm2x5_aqi','mcpm4x0','ncpm0x5','ncpm10',
+                                          'ncpm1x0','ncpm2x5','ncpm4x0','rh','temperature','tpsize']].mean().round(2)
+    
+    grouped_hourly_df.reset_index(level = ['serial'], inplace = True)
+    grouped_hourly_df['timestamp'] = grouped_hourly_df.index.to_numpy()
+    grouped_hourly_df['timestamp'] = grouped_hourly_df['timestamp'].apply(lambda x: datetime(*x))
+    grouped_hourly_df.reset_index(drop = True, inplace = True)
+    return grouped_hourly_df
+
 ###MAIN BODY FUNCTION
-def main(database, start_date, end_date) -> None:
+def main(secrets_PATH, start_date, end_date) -> None:
+    #open secrets file
+    secrets_df = pd.read_csv(secrets_PATH)
 
     #iterate through each key/secret pair and get the respective token (if user has access to multiple TSI accounts)
-    for client_key in database:
-        
-        client_key  = client_key
-        client_secret = database[client_key]
+    for index, row in secrets_df.iterrows():
+        client_key = row['key']
+        client_secret = row['secret']
+        dev_email = row['dev_email']
 
         client_token(client_key, client_secret)
 
         #notification that specific client token has been successfully received
-        print(f'Received token from client key {client_key}')
+        print(f'Received token from developer key {dev_email}')
 
     #iterate through token jsons in /client_tokens to get devices from each token and update master_device_list
     
@@ -343,8 +375,22 @@ def main(database, start_date, end_date) -> None:
     combined_csv = pd.concat(map(lambda csv_file: pd.read_csv(csv_file), joined_telemetry_csvs), ignore_index = True)
 
     #output merged csv
-    combined_csv.to_csv('output_raw_telemetry.csv', index = False)
+    combined_csv.to_csv('telemetry_raw.csv', index = False)
     print('Merged raw csv successfully compiled')
 
+    ### Level 0 QA
+
+    lvl0_raw_df = level_zero_raw(combined_csv)
+    #level 0 is just data type conversions and .csv files don't save data types so there's not much point in outputting csv for this df
+    
+    lvl0_hourly_df = level_zero_hourly(lvl0_raw_df)
+    lvl0_hourly_df.to_csv('telemetry_lvl_0_hourly.csv', index = False)
+
+    ### Level 1 QA
+
+    #lvl1_raw_df = level_one_raw(combined_csv)
+    #lvl1_hourly_df = level_one_hourly(combined_csv)
+
+
 if __name__ == "__main__":
-    main(database, start_date, end_date)
+    main(secrets_PATH, start_date, end_date)
