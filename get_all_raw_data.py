@@ -10,7 +10,7 @@ Checkout main() function for the main body of the script
 PARAMS:
 data_start_date: data start range
 data_end_date: data end range
-database: dictionary of key/secret pairs (right now we only have one (mike's account))
+secrets_PATH: PATH for secrets.csv (all developer key/secret pairs)
 
 WORKFLOW DOC: (will be updated as we make edits to the script)
 
@@ -42,7 +42,7 @@ Main inputs: developer key(s), secret(s), data date params (start_date & end_dat
 
 
 Keep updated/merged file for each device (run by run)
-TODO
+#talk with mike and prakash about this as well
 
 USER Types for script use:
 TODO
@@ -55,6 +55,9 @@ ANSWER: consider /indoor vs /outdoor flags that TSI already has'
 done
 
 maybe changing friendlyName for each location change?
+done
+
+transcribing QA level0
 done
 
 '''
