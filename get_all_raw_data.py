@@ -308,7 +308,7 @@ def level_zero_hourly(lvl0_raw_df):
                                                                 ]], on = 'serial', how = 'left')
 
     grouped_hourly_df.drop_duplicates(subset = ['serial', 'timestamp'], inplace = True)
-    
+
     return grouped_hourly_df
 
 def level_one_raw(lvl0_raw_df):
@@ -388,7 +388,7 @@ def main(secrets_PATH, start_date, end_date) -> None:
     combined_csv = pd.concat(map(lambda csv_file: pd.read_csv(csv_file), joined_telemetry_csvs), ignore_index = True)
 
     #output merged csv
-    combined_csv.to_csv('telemetry_raw.csv', index = False)
+    combined_csv.to_csv(os.path.join(r'./telemetry_outputs', 'telemetry_raw.csv'), index = False)
     print('Merged raw csv successfully compiled')
 
     ### Level 0 QA
@@ -397,7 +397,7 @@ def main(secrets_PATH, start_date, end_date) -> None:
     lvl0_raw_df = level_zero_raw(combined_csv)
     
     lvl0_hourly_df = level_zero_hourly(lvl0_raw_df)
-    lvl0_hourly_df.to_csv('telemetry_lvl_0_hourly.csv', index = False)
+    lvl0_hourly_df.to_csv(os.path.join(r'./telemetry_outputs', 'telemetry_lvl_0_hourly.csv'), index = False)
 
     print('Level 0 QA completed')
 
