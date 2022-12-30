@@ -11,6 +11,50 @@ PARAMS:
 data_start_date: data start range
 data_end_date: data end range
 database: dictionary of key/secret pairs (right now we only have one (mike's account))
+
+WORKFLOW DOC: (will be updated as we make edits to the script)
+
+Script job: Get, clean, and merge sensor data using the TSI v3 external API from specified dates. 
+Main inputs: developer key(s), secret(s), data date params (start_date & end_date)
+
+### Most of the workflow can be explained through the main() function
+1. Input developer key/secret pairs
+2. Call client_token() function to return token .json file(s) by using developer key/secret pair
+   until no key/secret pairs are left
+3. Store token .json file(s) in ./client_tokens (file is named by developer email)
+4. Open ./client_tokens folder and begin iterating through each token .json file in it. 
+5. For each token file, call device_list() which takes in the token .json file PATH as an argument. 
+   device_list() will extract the token string from the file input and GETS device list data associated with
+   user token in json format. 
+   The json of device list data is then dumped and stored in ./device_list_by_developer_user.
+   The list of device data (e.g. device_cloud_id, device_location, friendly_name, etc.) is also appended to a 
+   master .csv file using the append_device_list() function, which is found in ./master_device_list/master_device_list.csv. 
+   Within append_device_list(), we utilize shorten_name() and get_country() to obtain and serialize valuable data associated
+   with each device, most notably location and a shortened friendly device ID.
+6. Now, with the master .csv file of all the devices, we can call get_telemetry_flat() to request data for each device from 
+   the TSI server. The function (and GET method by extension) notably takes in the cloud ID of the device as an argument. 
+   get_telemetry_flat() returns a .json file that is stored in ./flat_telemetry_json_RAW. This function call is repeated
+   for all devices located in master_device_list.csv
+7. All of the .json data files in ./flat_telemetry_json_RAW is converted to .csv files and stored in ./flat_telemetry_csv_RAW
+   using the flatten_json() function. 
+8. All of the .csv files in ./flat_telemetry_csv_RAW are merged together in one big .csv file. The merged file is outputted in 
+   the main directory as output_raw_telemetry.csv
+
+
+Keep updated/merged file for each device (run by run)
+TODO
+
+USER Types for script use:
+TODO
+
+upload v2 code on github:
+done
+
+think about lat/long change (calibration vs deployed locations) for each device:
+ANSWER: consider /indoor vs /outdoor flags that TSI already has
+maybe changing friendlyName for each location change?
+done
+
 '''
 
 import requests
@@ -20,6 +64,8 @@ import glob
 import pandas as pd
 import reverse_geocode
 
+###Create dialog box as input for PARAMS
+#give choice to delete indiv. raw files or not
 
 client_key = 'ZEMIbhqwCe7MIVfGeq1pNA9nqAGpvpcVuaw9XEEmRXtgGt1I'
 client_secret = 'ayuIiRntou61plHwEtasfC4HnxBqG02svGGhaUSszGVBm9PRvn0yNWgUAq5UwpJN'
@@ -37,16 +83,13 @@ def client_token(client_key, client_secret) -> None:
     headers = {
         'Accept': 'application/json',
     }
-
     params = {
         'grant_type': 'client_credentials',
     }
-
     data = {
         'client_id': client_key,
         'client_secret': client_secret,
     }
-
     response = requests.post(
         'https://api-prd.tsilink.com/api/v3/external/oauth/client_credential/accesstoken',
         params=params,
@@ -62,18 +105,53 @@ def client_token(client_key, client_secret) -> None:
     with open(os.path.join(r'./client_tokens', output_token_filename), 'w') as f:
         json.dump(data, f)
 
-def shorten_name(friendly_name) -> str:
-    return ''
-    
+#shorten name based off de Foy's rules
+def shorten_name(friendly_name, country_code) -> str:
     #de Foy's code
 
+    #pattern guide for str replacement
+    pg = {'of': '_',
+          'university': 'u',
+          'univ': 'u',
+          'airport:': 'apt',
+          'campus': '',
+          'school': '',
+          ' ': '_',
+          ',': '_',
+          '.': '_',
+          '-': '_',
+          '/': '_',
+          '(': '_',
+          ')': '_',
+          '__': '_'
+          }
+
+    #method for replacing string using pattern guide dict
+    def str_replace(string, pattern_guide) -> str:
+        for pattern in pattern_guide:
+            string = string.replace(pattern, pattern_guide[pattern])
+
+        return string 
+
+    #lowercase friendly name
+    friendly_name = friendly_name.lower()
+    #replace patterns in friendly_name according to pattern guide
+    friendly_name = str_replace(friendly_name, pg)
+    #add countrycode to beginning of short name
+    country_code = country_code.lower()
+    friendly_name = country_code + '_' + friendly_name
+    
+    return friendly_name
+
 #get country based of coords
-def get_country(coords) -> str:
+def get_country(coords) -> list:
     #search requires list input
     location = reverse_geocode.search(coords)
+    country_code = location[0]['country_code']
     country = location[0]['country']
+    city = location[0]['city']
 
-    return country
+    return [city, country, country_code]
 
 #append new countries to master device list
 def append_device_list(response_json, dev_email) -> None:
@@ -89,17 +167,20 @@ def append_device_list(response_json, dev_email) -> None:
         #list input
         coords = [(float(device['metadata']['latitude']), float(device['metadata']['longitude']))]
 
-        #get country based off coords
-        country = get_country(coords)
+        #get city/country/country_code based off coords
+        city = get_country(coords)[0]
+        country = get_country(coords)[1]
+        country_code = get_country(coords)[2]
         
         #shorten friendly_name using shorten_name() subroutine
-        short_name = shorten_name(friendly_name)
+        short_name = shorten_name(friendly_name, country_code)
 
         #new device to be inserted into csv
         insert_row = {
             'cloud_account_id': cloud_account_id,
             'cloud_device_id': cloud_device_id,
             'serial_number': serial_number,
+            'city': city,
             'country': country,
             'friendly_name': friendly_name,
             'short_name': short_name,
@@ -138,7 +219,6 @@ def device_list(token_json_file) -> None:
 
     append_device_list(response_json, dev_email)
 
-
     #we want the output file to be a device list (identifiable by dev email), format = '(DEVELOPER EMAIL)_device_list.json'
     with open(os.path.join(r'./device_list_by_developer_user', f'{dev_email}_device_list.json'), "w") as outfile:
         outfile.write(response.text)
@@ -153,7 +233,7 @@ def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None
     
   token = data['access_token']
 
-  requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/flat-format?device_id={device_id}&start_date={start_date}&end_date={end_date}&telem[]=location&telem[]=is_indoor&telem[]=mcpm1x0&telem[]=ncpm1x0&telem[]=tpsize&telem[]=temperature&telem[]=rh"
+  requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/flat-format?device_id={device_id}&start_date={start_date}&end_date={end_date}&telem[]=serial&telem[]=location&telem[]=is_indoor&telem[]=mcpm1x0&telem[]=ncpm1x0&telem[]=tpsize&telem[]=temperature&telem[]=rh"
   requestHeaders = {
     "Accept": "application/json",
     "Authorization": f"Bearer {token}"
@@ -162,7 +242,7 @@ def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None
   response = requests.get(requestUrl, headers=requestHeaders)
 
   #format of output file: device_id + start_date + end_date
-  with open(os.path.join(r'./flat_telemetry_json', f'{device_id}_{start_date}_{end_date}.json'), "w") as outfile:
+  with open(os.path.join(r'./flat_telemetry_json_RAW', f'{device_id}_{start_date}_{end_date}.json'), "w") as outfile:
     outfile.write(response.text)
 
 def flatten_json(json_file):
@@ -172,8 +252,8 @@ def flatten_json(json_file):
     raw_df = pd.json_normalize(flat_json)
 
     file_PATH = str(json_file)
-    #remove directory from file_PATH to get file_name (./flat_telemetry_json/) and .json tag
-    file_name = file_PATH[22:-5]
+    #remove directory from file_PATH to get file_name (./flat_telemetry_json_RAW/) and .json tag
+    file_name = file_PATH[26:-5]
 
     #dump csv into directory
     raw_df.to_csv(os.path.join(r'./flat_telemetry_csv_RAW', f'{file_name}.csv'), index = False)
@@ -223,17 +303,16 @@ def main(database, start_date, end_date) -> None:
         #dump json files for each device in /flat_telemetry_json
         get_telemetry_flat(token_json_file, device_id, start_date, end_date)
     
-    print('Device telemetry jsons have been successfully dumped into /flat_telemetry_json')
+    print('Device telemetry jsons have been successfully dumped into /flat_telemetry_json_RAW')
 
     #convert all telemetry jsons to csv files using json decoder function
-    telemetry_jsons_PATHS = os.path.join(r'./flat_telemetry_json', '*.json')
+    telemetry_jsons_PATHS = os.path.join(r'./flat_telemetry_json_RAW', '*.json')
     
     #returns list of all the files located in the /client_tokens directory so we can iterate through them
     joined_telemetry_jsons = glob.glob(telemetry_jsons_PATHS)
 
     for telemetry_json in joined_telemetry_jsons:
         #use json decoder function to convert telemetry_json to csv file
-
         #flattens json and dumps output .csv file into /flat_telemetry_csv_RAW
         flatten_json(telemetry_json)
 

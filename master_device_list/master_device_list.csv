@@ -1,1 +1,3 @@
-cloud_account_id,cloud_device_id,serial_number,country,friendly_name,short_name,dev_email
+cloud_account_id,cloud_device_id,serial_number,city,country,friendly_name,short_name,dev_email
+c4257c0qi9clu8nikfgg,c50fv8u7kn8vcc9cd6cg,81432039074,Durham,United States,Duke 2,us_duke_2,mike.bergin@duke.edu
+c4257c0qi9clu8nikfgg,c5e99utomcjt2d3sngc0,81432039072,Durham,United States,Duke 3,us_duke_3,mike.bergin@duke.edu
