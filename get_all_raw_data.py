@@ -302,6 +302,13 @@ def level_zero_hourly(lvl0_raw_df):
     grouped_hourly_df['timestamp'] = grouped_hourly_df.index.to_numpy()
     grouped_hourly_df['timestamp'] = grouped_hourly_df['timestamp'].apply(lambda x: datetime(*x))
     grouped_hourly_df.reset_index(drop = True, inplace = True)
+
+    grouped_hourly_df = pd.merge(grouped_hourly_df, lvl0_raw_df[['serial', 'cloud_account_id', 'cloud_device_id',
+                                                                 'is_indoor', 'is_public', 'latitude', 'longitude', 
+                                                                ]], on = 'serial', how = 'left')
+
+    grouped_hourly_df.drop_duplicates(subset = ['serial', 'timestamp'], inplace = True)
+    
     return grouped_hourly_df
 
 def level_one_raw(lvl0_raw_df):
@@ -391,6 +398,8 @@ def main(secrets_PATH, start_date, end_date) -> None:
     
     lvl0_hourly_df = level_zero_hourly(lvl0_raw_df)
     lvl0_hourly_df.to_csv('telemetry_lvl_0_hourly.csv', index = False)
+
+    print('Level 0 QA completed')
 
     ### Level 1 QA
     lvl1_raw_df = level_one_raw(combined_csv)
