@@ -304,6 +304,12 @@ def level_zero_hourly(lvl0_raw_df):
     grouped_hourly_df.reset_index(drop = True, inplace = True)
     return grouped_hourly_df
 
+def level_one_raw(lvl0_raw_df):
+    return 
+
+def level_one_hourly(lvl1_raw_df):
+    return
+
 ###MAIN BODY FUNCTION
 def main(secrets_PATH, start_date, end_date) -> None:
     #open secrets file
@@ -379,17 +385,16 @@ def main(secrets_PATH, start_date, end_date) -> None:
     print('Merged raw csv successfully compiled')
 
     ### Level 0 QA
-
+    #level 0 is just data type conversions and .csv files don't save data types so there's 
+    #not much point in outputting csv for this df
     lvl0_raw_df = level_zero_raw(combined_csv)
-    #level 0 is just data type conversions and .csv files don't save data types so there's not much point in outputting csv for this df
     
     lvl0_hourly_df = level_zero_hourly(lvl0_raw_df)
     lvl0_hourly_df.to_csv('telemetry_lvl_0_hourly.csv', index = False)
 
     ### Level 1 QA
-
-    #lvl1_raw_df = level_one_raw(combined_csv)
-    #lvl1_hourly_df = level_one_hourly(combined_csv)
+    lvl1_raw_df = level_one_raw(combined_csv)
+    lvl1_hourly_df = level_one_hourly(combined_csv)
 
 
 if __name__ == "__main__":
