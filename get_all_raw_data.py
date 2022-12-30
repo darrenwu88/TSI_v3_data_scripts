@@ -52,6 +52,7 @@ done
 
 think about lat/long change (calibration vs deployed locations) for each device:
 ANSWER: consider /indoor vs /outdoor flags that TSI already has
+
 maybe changing friendlyName for each location change?
 done
 
@@ -106,7 +107,7 @@ def client_token(client_key, client_secret) -> None:
         json.dump(data, f)
 
 #shorten name based off de Foy's rules
-def shorten_name(friendly_name, country_code) -> str:
+def shorten_name(friendly_name, country_code, is_indoor_flag) -> str:
     #de Foy's code
 
     #pattern guide for str replacement
@@ -140,6 +141,8 @@ def shorten_name(friendly_name, country_code) -> str:
     #add countrycode to beginning of short name
     country_code = country_code.lower()
     friendly_name = country_code + '_' + friendly_name
+    #append is_indoors flag (type bool) to the short name
+    friendly_name = friendly_name + '_' + str(is_indoor_flag)
     
     return friendly_name
 
@@ -163,8 +166,9 @@ def append_device_list(response_json, dev_email) -> None:
         cloud_device_id = device['device_id']
         serial_number = device['serial']
         friendly_name = device['metadata']['friendlyName']
+        is_indoor = device['metadata']['is_indoor']
 
-        #list input
+        #list inputs
         coords = [(float(device['metadata']['latitude']), float(device['metadata']['longitude']))]
 
         #get city/country/country_code based off coords
@@ -173,7 +177,7 @@ def append_device_list(response_json, dev_email) -> None:
         country_code = get_country(coords)[2]
         
         #shorten friendly_name using shorten_name() subroutine
-        short_name = shorten_name(friendly_name, country_code)
+        short_name = shorten_name(friendly_name, country_code, is_indoor)
 
         #new device to be inserted into csv
         insert_row = {
@@ -184,7 +188,8 @@ def append_device_list(response_json, dev_email) -> None:
             'country': country,
             'friendly_name': friendly_name,
             'short_name': short_name,
-            'dev_email': dev_email
+            'dev_email': dev_email,
+            'is_indoor': is_indoor
         }
 
         #append new row for new device if it doesn't exist
@@ -223,7 +228,7 @@ def device_list(token_json_file) -> None:
     with open(os.path.join(r'./device_list_by_developer_user', f'{dev_email}_device_list.json'), "w") as outfile:
         outfile.write(response.text)
 
-def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None:
+def get_telemetry_flat(token_json_file, device_id, short_name, start_date, end_date) -> None:
   
   #initialize PATH where token for user is located
   token_PATH = fr'./client_tokens/{token_json_file}'
@@ -233,7 +238,18 @@ def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None
     
   token = data['access_token']
 
-  requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/flat-format?device_id={device_id}&start_date={start_date}&end_date={end_date}&telem[]=serial&telem[]=location&telem[]=is_indoor&telem[]=mcpm1x0&telem[]=ncpm1x0&telem[]=tpsize&telem[]=temperature&telem[]=rh"
+  #use telem_query link to complete request Url
+  telem_query = ['model', 'serial', 'location', 'is_public', 'is_indoor', 'mcpm1x0', 'mcpm2x5', 'mcpm4x0', 'mcpm10', 
+                 'ncpm0x5', 'ncpm1x0', 'ncpm2x5', 'ncpm4x0', 'ncpm10', 'tpsize', 'mcpm2x5_aqi', 'mcpm10_aqi', 'co2_ppm', 
+                 'co_ppm', 'baro_inhg', 'o3_ppb', 'no2_ppb', 'so2_ppb', 'ch2o_ppb', 'voc_mgm3', 'temperature', 'rh'
+                ]
+
+  requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/flat-format?device_id={device_id}&start_date={start_date}&end_date={end_date}"
+  
+  #create full requestUrl
+  for arg in telem_query:
+    requestUrl += '&telem[]=' + arg
+  
   requestHeaders = {
     "Accept": "application/json",
     "Authorization": f"Bearer {token}"
@@ -241,8 +257,8 @@ def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None
 
   response = requests.get(requestUrl, headers=requestHeaders)
 
-  #format of output file: device_id + start_date + end_date
-  with open(os.path.join(r'./flat_telemetry_json_RAW', f'{device_id}_{start_date}_{end_date}.json'), "w") as outfile:
+  #format of output file: short_name + start_date + end_date
+  with open(os.path.join(r'./flat_telemetry_json_RAW', f'{short_name}_{start_date}_{end_date}.json'), "w") as outfile:
     outfile.write(response.text)
 
 def flatten_json(json_file):
@@ -296,12 +312,12 @@ def main(database, start_date, end_date) -> None:
     for index, row in device_list_df.iterrows():
         #get necessary query PARAMS to call telemetry_flat()
         dev_email = row['dev_email']
-
         device_id = row['cloud_device_id']
+        short_name = row['short_name']
         token_json_file = f'({dev_email})_token.json'
 
         #dump json files for each device in /flat_telemetry_json
-        get_telemetry_flat(token_json_file, device_id, start_date, end_date)
+        get_telemetry_flat(token_json_file, device_id, short_name, start_date, end_date)
     
     print('Device telemetry jsons have been successfully dumped into /flat_telemetry_json_RAW')
 
