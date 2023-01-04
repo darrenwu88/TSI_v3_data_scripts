@@ -158,6 +158,8 @@ def append_device_list(response_json, dev_email) -> None:
         serial_number = device['serial']
         friendly_name = device['metadata']['friendlyName']
         is_indoor = device['metadata']['is_indoor']
+        longitude = device['metadata']['longitude']
+        latitude = device['metadata']['latitude']
 
         #list inputs
         coords = [(float(device['metadata']['latitude']), float(device['metadata']['longitude']))]
@@ -166,6 +168,9 @@ def append_device_list(response_json, dev_email) -> None:
         city = get_country(coords)[0]
         country = get_country(coords)[1]
         country_code = get_country(coords)[2]
+
+        #convert coords to tuple type
+        #coords = (longitude, latitude)
         
         #shorten friendly_name using shorten_name() subroutine
         short_name = shorten_name(friendly_name, country_code, is_indoor)
@@ -180,13 +185,16 @@ def append_device_list(response_json, dev_email) -> None:
             'friendly_name': friendly_name,
             'short_name': short_name,
             'dev_email': dev_email,
-            'is_indoor': is_indoor
+            'is_indoor': is_indoor,
+            'coords': coords
         }
 
+        #check to see if coord has changed for existing sensors and overwrite
+        #df.loc[(df['cloud_device_id'] == cloud_device_id) & (df['coords'] != coords), ['coords']] = coords
         #append new row for new device if it doesn't exist
         if cloud_device_id not in df['cloud_device_id'].values:
             df = pd.concat([df, pd.DataFrame([insert_row])])
-    
+        
     #overwrite old csv file
     df.to_csv(os.path.join(r'./master_device_list', 'master_device_list.csv'), index = False)
 
