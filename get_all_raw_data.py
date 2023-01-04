@@ -46,27 +46,10 @@ OBJECTIVES for this week
 Keep updated/merged file for each device (run by run)
 #talk with mike and prakash about this as well
 
-USER Types for script use:
-TODO
-
-Dialog input box for users (less mistakes & more friendly use):
-TODO
-
-upload v2 code on github:
-done
-
-think about lat/long change (not auto-adjusted) (calibration vs deployed locations) for each device:
-
-changing friendly name? instead of inferring from data
-
-is_indoor (not auto-adjusted)
-#consider sensors that are indoor in the first place (shows up differently on map)
-
-add a flag in for suspect data during lvl 1 QA
+add a flag in for suspect data during lvl 1 QA (device status is not support for v3 flat telemetry? not sure)
 
 assuming we still have the 30 day rule, script continuously appends data week by week
 
-more documentation on workflow / feedback
 
 '''
 
@@ -82,7 +65,7 @@ import reverse_geocode
 #PARAMS
 secrets_PATH = r'./account_auth_info/secrets.csv'
 start_date = '2022-12-05T15:00:00Z'
-end_date = '2022-12-25T15:00:00Z'
+end_date = '2023-01-04T12:30:00Z'
 
 #Base functions 
 def client_token(client_key, client_secret) -> None:
@@ -115,6 +98,8 @@ def client_token(client_key, client_secret) -> None:
 #shorten name based off de Foy's rules
 def shorten_name(friendly_name, country_code, is_indoor_flag) -> str:
     #de Foy's code
+
+    #determine if friendly_name has outdoor/indoor in its name (TBD)
 
     #pattern guide for str replacement
     pg = {'of': '_',
@@ -262,6 +247,10 @@ def get_telemetry_flat(token_json_file, device_id, short_name, start_date, end_d
   }
 
   response = requests.get(requestUrl, headers = requestHeaders)
+ 
+  #trim start_date and end_date for better filenaming
+  start_date = start_date[:-4]
+  end_date = end_date[:-4]
 
   #format of output file: short_name + start_date + end_date
   with open(os.path.join(r'./flat_telemetry_json_RAW', f'{short_name}_{start_date}_{end_date}.json'), "w") as outfile:
@@ -316,6 +305,7 @@ def level_zero_hourly(lvl0_raw_df):
                                                                  'is_indoor', 'is_public', 'latitude', 'longitude', 
                                                                 ]], on = 'serial', how = 'left')
 
+    grouped_hourly_df['timestamp'] = pd.to_datetime(grouped_hourly_df['timestamp'], format = '%Y-%m-%d %H:%M:%S')
     grouped_hourly_df.drop_duplicates(subset = ['serial', 'timestamp'], inplace = True)
 
     return grouped_hourly_df
@@ -354,7 +344,7 @@ def level_one_hourly(lvl1_raw_df):
     grouped_df = lvl1_raw_df.groupby(['serial', lvl1_raw_df['timestamp'].dt.year, lvl1_raw_df['timestamp'].dt.month, lvl1_raw_df['timestamp'].dt.day, lvl1_raw_df['timestamp'].dt.hour])
 
     grouped_df = grouped_df.filter(lambda x: len(x) * (x['timestamp'].diff().value_counts(dropna = True).idxmax().total_seconds() / 60) >= 45)  
-    s
+    
     grouped_df.reset_index(drop = True, inplace = True)
 
     grouped_hourly_df = grouped_df.groupby(['serial', grouped_df['timestamp'].dt.year, grouped_df['timestamp'].dt.month, grouped_df['timestamp'].dt.day, grouped_df['timestamp'].dt.hour])
@@ -370,6 +360,7 @@ def level_one_hourly(lvl1_raw_df):
                                                                  'is_indoor', 'is_public', 'latitude', 'longitude', 
                                                                  'time_delta']], on = 'serial', how = 'left')
 
+    grouped_hourly_df['timestamp'] = pd.to_datetime(grouped_hourly_df['timestamp'], format = '%Y-%m-%d %H:%M:%S')
     grouped_hourly_df.drop_duplicates(subset = ['serial', 'timestamp'], inplace = True)
     
     return grouped_hourly_df
@@ -446,6 +437,11 @@ def main(secrets_PATH, start_date, end_date) -> None:
 
     #output merged csv
     combined_csv.to_csv(os.path.join(r'./telemetry_outputs', 'telemetry_raw.csv'), index = False)
+
+    #sort combined csv by datetime
+    combined_csv['timestamp'] = pd.to_datetime(combined_csv['timestamp'], format='%Y-%m-%d %H:%M:%S')
+    combined_csv.sort_values(by = 'timestamp', ascending = True, inplace = True)
+
     print('Merged raw csv successfully compiled')
 
     ### Level 0 QA
@@ -467,7 +463,6 @@ def main(secrets_PATH, start_date, end_date) -> None:
 
     print('Level 1 QA completed')
     
-
 
 if __name__ == "__main__":
     main(secrets_PATH, start_date, end_date)

@@ -40,14 +40,13 @@ def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None
   data = json.load(json_file)
     
   token = data['access_token']
-
-
+  
   requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/"
   requestHeaders = {
     "Accept": "application/json",
     "Authorization": f"Bearer {token}"
   }
-
+#2023-01-04T12:26:57Z
   response = requests.get(requestUrl, headers=requestHeaders)
 
   #format of output file: device_id + start_date + end_date
