@@ -25,7 +25,7 @@ token_json_file = '(mike.bergin@duke.edu)_token.json'
 
 #Query PARAMS
 device_id = 'c50fv8u7kn8vcc9cd6cg'
-start_date = '2022-12-02T15:00:00Z'
+start_date = '2022-12-05T15:00:00Z'
 end_date = '2022-12-22T15:00:00Z'
 
 #More params here, keeping it simple for now
@@ -42,7 +42,7 @@ def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None
   token = data['access_token']
 
 
-  requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/flat-format?device_id={device_id}&start_date={start_date}&end_date={end_date}&telem[]=location&telem[]=is_indoor&telem[]=mcpm1x0&telem[]=ncpm1x0&telem[]=tpsize&telem[]=temperature&telem[]=rh"
+  requestUrl = f"https://api-prd.tsilink.com/api/v3/external/telemetry/"
   requestHeaders = {
     "Accept": "application/json",
     "Authorization": f"Bearer {token}"
@@ -51,7 +51,7 @@ def get_telemetry_flat(token_json_file, device_id, start_date, end_date) -> None
   response = requests.get(requestUrl, headers=requestHeaders)
 
   #format of output file: device_id + start_date + end_date
-  with open(os.path.join(r'./flat_telemetry_json', f'{device_id}_{start_date}_{end_date}.json'), "w") as outfile:
+  with open(os.path.join(r'./flat_telemetry_json_RAW', f'{device_id}_{start_date}_{end_date}__test.json'), "w") as outfile:
     outfile.write(response.text)
 
 if __name__ == "__main__":

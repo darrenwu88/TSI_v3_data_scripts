@@ -49,21 +49,24 @@ Keep updated/merged file for each device (run by run)
 USER Types for script use:
 TODO
 
-Dialog input box for users:
+Dialog input box for users (less mistakes & more friendly use):
 TODO
 
 upload v2 code on github:
 done
 
-think about lat/long change (calibration vs deployed locations) for each device:
-ANSWER: consider /indoor vs /outdoor flags that TSI already has'
-done
+think about lat/long change (not auto-adjusted) (calibration vs deployed locations) for each device:
 
-maybe changing friendlyName for each location change?
-done
+changing friendly name? instead of inferring from data
 
-transcribing QA level0
-done
+is_indoor (not auto-adjusted)
+#consider sensors that are indoor in the first place (shows up differently on map)
+
+add a flag in for suspect data during lvl 1 QA
+
+assuming we still have the 30 day rule, script continuously appends data week by week
+
+more documentation on workflow / feedback
 
 '''
 
@@ -78,8 +81,8 @@ import reverse_geocode
 
 #PARAMS
 secrets_PATH = r'./account_auth_info/secrets.csv'
-start_date = '2022-12-02T15:00:00Z'
-end_date = '2022-12-22T15:00:00Z'
+start_date = '2022-12-05T15:00:00Z'
+end_date = '2022-12-25T15:00:00Z'
 
 #Base functions 
 def client_token(client_key, client_secret) -> None:
@@ -258,7 +261,7 @@ def get_telemetry_flat(token_json_file, device_id, short_name, start_date, end_d
     "Authorization": f"Bearer {token}"
   }
 
-  response = requests.get(requestUrl, headers=requestHeaders)
+  response = requests.get(requestUrl, headers = requestHeaders)
 
   #format of output file: short_name + start_date + end_date
   with open(os.path.join(r'./flat_telemetry_json_RAW', f'{short_name}_{start_date}_{end_date}.json'), "w") as outfile:
@@ -288,8 +291,9 @@ def level_zero_hourly(lvl0_raw_df):
     #group df by specific sensor and hour of data
     lvl0_raw_df['timestamp'] = pd.to_datetime(lvl0_raw_df['timestamp'], format='%Y-%m-%d %H:%M:%S')
     grouped_df = lvl0_raw_df.groupby(['serial', lvl0_raw_df['timestamp'].dt.year, lvl0_raw_df['timestamp'].dt.month, lvl0_raw_df['timestamp'].dt.day, lvl0_raw_df['timestamp'].dt.hour])
-    
+
     grouped_df = grouped_df.filter(lambda x: len(x) * (x['timestamp'].diff().value_counts(dropna = True).idxmax().total_seconds() / 60) >= 45)  
+    
     grouped_df.reset_index(drop = True, inplace = True)
 
     #all cols 
@@ -301,7 +305,7 @@ def level_zero_hourly(lvl0_raw_df):
 
     grouped_hourly_df = grouped_df.groupby(['serial', grouped_df['timestamp'].dt.year, grouped_df['timestamp'].dt.month, grouped_df['timestamp'].dt.day, grouped_df['timestamp'].dt.hour])
     grouped_hourly_df = grouped_hourly_df[['mcpm10','mcpm10_aqi','mcpm1x0','mcpm2x5','mcpm2x5_aqi','mcpm4x0','ncpm0x5','ncpm10',
-                                          'ncpm1x0','ncpm2x5','ncpm4x0','rh','temperature','tpsize']].mean().round(2)
+                                          'ncpm1x0','ncpm2x5','ncpm4x0','rh','temperature','tpsize']].mean().round(2)     
     
     grouped_hourly_df.reset_index(level = ['serial'], inplace = True)
     grouped_hourly_df['timestamp'] = grouped_hourly_df.index.to_numpy()
@@ -317,10 +321,58 @@ def level_zero_hourly(lvl0_raw_df):
     return grouped_hourly_df
 
 def level_one_raw(lvl0_raw_df):
-    return 
+    #V2 had case error filtering for the data, but v3 doesn't have 'Device Status' query parameter // will followup
+
+    #Data capping function for ug/m3 measurements
+    # 1 min -> >5000 ug/m3
+    # 5 min -> >2000 ug/m3
+    # >10min -> >1000 ug/m3
+
+    lvl0_raw_df['time_delta'] = lvl0_raw_df['timestamp'].diff().value_counts(dropna = True).idxmax().total_seconds() / 60
+
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 10) & (lvl0_raw_df['mcpm1x0'] >= 1000), ['mcpm1x0']] = 1000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 5) & (lvl0_raw_df['mcpm1x0'] >= 2000), ['mcpm1x0']] = 2000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 1) & (lvl0_raw_df['mcpm1x0'] >= 5000), ['mcpm1x0']] = 5000
+
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 10) & (lvl0_raw_df['mcpm2x5'] >= 1000), ['mcpm2x5']] = 1000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 5) & (lvl0_raw_df['mcpm2x5'] >= 2000), ['mcpm2x5']] = 2000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 1) & (lvl0_raw_df['mcpm2x5'] >= 5000), ['mcpm2x5']] = 5000
+
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 10) & (lvl0_raw_df['mcpm4x0'] >= 1000), ['mcpm4x0']] = 1000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 5) & (lvl0_raw_df['mcpm4x0'] >= 2000), ['mcpm4x0']] = 2000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 1) & (lvl0_raw_df['mcpm4x0'] >= 5000), ['mcpm4x0']] = 5000
+
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 10) & (lvl0_raw_df['mcpm10'] >= 1000), ['mcpm10']] = 1000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 5) & (lvl0_raw_df['mcpm10'] >= 2000), ['mcpm10']] = 2000
+    lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 1) & (lvl0_raw_df['mcpm10'] >= 5000), ['mcpm10']] = 5000
+
+    return lvl0_raw_df
 
 def level_one_hourly(lvl1_raw_df):
-    return
+    #group df by specific sensor and hour of data
+    #lvl0_raw_df['timestamp'] = pd.to_datetime(lvl0_raw_df['timestamp'], format='%Y-%m-%d %H:%M:%S')
+    grouped_df = lvl1_raw_df.groupby(['serial', lvl1_raw_df['timestamp'].dt.year, lvl1_raw_df['timestamp'].dt.month, lvl1_raw_df['timestamp'].dt.day, lvl1_raw_df['timestamp'].dt.hour])
+
+    grouped_df = grouped_df.filter(lambda x: len(x) * (x['timestamp'].diff().value_counts(dropna = True).idxmax().total_seconds() / 60) >= 45)  
+    s
+    grouped_df.reset_index(drop = True, inplace = True)
+
+    grouped_hourly_df = grouped_df.groupby(['serial', grouped_df['timestamp'].dt.year, grouped_df['timestamp'].dt.month, grouped_df['timestamp'].dt.day, grouped_df['timestamp'].dt.hour])
+    grouped_hourly_df = grouped_hourly_df[['mcpm10','mcpm10_aqi','mcpm1x0','mcpm2x5','mcpm2x5_aqi','mcpm4x0','ncpm0x5','ncpm10',
+                                          'ncpm1x0','ncpm2x5','ncpm4x0','rh','temperature','tpsize']].mean().round(2)     
+    
+    grouped_hourly_df.reset_index(level = ['serial'], inplace = True)
+    grouped_hourly_df['timestamp'] = grouped_hourly_df.index.to_numpy()
+    grouped_hourly_df['timestamp'] = grouped_hourly_df['timestamp'].apply(lambda x: datetime(*x))
+    grouped_hourly_df.reset_index(drop = True, inplace = True)
+
+    grouped_hourly_df = pd.merge(grouped_hourly_df, lvl1_raw_df[['serial', 'cloud_account_id', 'cloud_device_id',
+                                                                 'is_indoor', 'is_public', 'latitude', 'longitude', 
+                                                                 'time_delta']], on = 'serial', how = 'left')
+
+    grouped_hourly_df.drop_duplicates(subset = ['serial', 'timestamp'], inplace = True)
+    
+    return grouped_hourly_df
 
 ###MAIN BODY FUNCTION
 def main(secrets_PATH, start_date, end_date) -> None:
@@ -408,7 +460,13 @@ def main(secrets_PATH, start_date, end_date) -> None:
 
     ### Level 1 QA
     lvl1_raw_df = level_one_raw(combined_csv)
+    lvl1_raw_df.to_csv(os.path.join(r'./telemetry_outputs', 'telemetry_lvl_1_raw.csv'), index = False)
+
     lvl1_hourly_df = level_one_hourly(combined_csv)
+    lvl1_hourly_df.to_csv(os.path.join(r'./telemetry_outputs', 'telemetry_lvl_1_hourly.csv'), index = False)
+
+    print('Level 1 QA completed')
+    
 
 
 if __name__ == "__main__":
