@@ -51,6 +51,9 @@ add a flag in for suspect data during lvl 1 QA (device status is not support for
 assuming we still have the 30 day rule, script continuously appends data week by week
 
 
+done when stable code and beginners can use it
+
+make video, make sure you can use v2 when you are using v3
 '''
 
 import requests
@@ -64,8 +67,8 @@ import reverse_geocode
 
 #PARAMS
 secrets_PATH = r'./account_auth_info/secrets.csv'
-start_date = '2022-12-05T15:00:00Z'
-end_date = '2023-01-04T12:30:00Z'
+start_date = '2022-12-11T15:00:00Z'
+end_date = '2023-01-09T12:30:00Z'
 
 #Base functions 
 def client_token(client_key, client_secret) -> None:
@@ -282,52 +285,72 @@ def level_zero_raw(raw_df):
     raw_df['serial'] = raw_df['serial'].astype(np.int64)
     #set data type for timestamps
     raw_df['timestamp'] = pd.to_datetime(raw_df['timestamp'], format='%Y-%m-%d %H:%M:%S')
+
     return raw_df
 
 def level_zero_hourly(lvl0_raw_df):
+
+    ### First portion to filter data by 75% data completeness threshold filter 
+
     #group df by specific sensor and hour of data
     lvl0_raw_df['timestamp'] = pd.to_datetime(lvl0_raw_df['timestamp'], format='%Y-%m-%d %H:%M:%S')
+    #group all data by specific hour (since we are looking at hourly data)
     grouped_df = lvl0_raw_df.groupby(['serial', lvl0_raw_df['timestamp'].dt.year, lvl0_raw_df['timestamp'].dt.month, lvl0_raw_df['timestamp'].dt.day, lvl0_raw_df['timestamp'].dt.hour])
-
+    #75% data completeness threshold filter
     grouped_df = grouped_df.filter(lambda x: len(x) * (x['timestamp'].diff().value_counts(dropna = True).idxmax().total_seconds() / 60) >= 45)  
-    
+    #convert groupby object back into df
     grouped_df.reset_index(drop = True, inplace = True)
 
-    #all cols 
+    #all cols for reference 
     '''
     cloud_account_id,cloud_device_id,is_indoor,is_public,latitude,longitude,
     mcpm10,mcpm10_aqi,mcpm1x0,mcpm2x5,mcpm2x5_aqi,mcpm4x0,model,ncpm0x5,ncpm10,
     ncpm1x0,ncpm2x5,ncpm4x0,rh,serial,temperature,timestamp,tpsize
     '''
 
+    ### Second portion to convert all data to hourly means
+
     grouped_hourly_df = grouped_df.groupby(['serial', grouped_df['timestamp'].dt.year, grouped_df['timestamp'].dt.month, grouped_df['timestamp'].dt.day, grouped_df['timestamp'].dt.hour])
+    #set mean function to all columns with data to be averaged
     grouped_hourly_df = grouped_hourly_df[['mcpm10','mcpm10_aqi','mcpm1x0','mcpm2x5','mcpm2x5_aqi','mcpm4x0','ncpm0x5','ncpm10',
                                           'ncpm1x0','ncpm2x5','ncpm4x0','rh','temperature','tpsize']].mean().round(2)     
     
+    #convert groupby object back into df
     grouped_hourly_df.reset_index(level = ['serial'], inplace = True)
+    #convert timestamp index back into df column
     grouped_hourly_df['timestamp'] = grouped_hourly_df.index.to_numpy()
+    #convert timestamp column datatype from datetime tuple to datetime
     grouped_hourly_df['timestamp'] = grouped_hourly_df['timestamp'].apply(lambda x: datetime(*x))
     grouped_hourly_df.reset_index(drop = True, inplace = True)
 
+    #merge hourly averaged data with qualitative columns from the original raw df
     grouped_hourly_df = pd.merge(grouped_hourly_df, lvl0_raw_df[['serial', 'cloud_account_id', 'cloud_device_id',
                                                                  'is_indoor', 'is_public', 'latitude', 'longitude', 
                                                                 ]], on = 'serial', how = 'left')
 
     grouped_hourly_df['timestamp'] = pd.to_datetime(grouped_hourly_df['timestamp'], format = '%Y-%m-%d %H:%M:%S')
+    #merge will produce duplicates, make sure to delete duplicates on sublevels of serial num and timestamp
     grouped_hourly_df.drop_duplicates(subset = ['serial', 'timestamp'], inplace = True)
 
     return grouped_hourly_df
 
 def level_one_raw(lvl0_raw_df):
+
+    ### First portion is to have case error filtering for the data
     #V2 had case error filtering for the data, but v3 doesn't have 'Device Status' query parameter // will followup
 
+    ### Second portion is to have data capping filters for the PM data
     #Data capping function for ug/m3 measurements
     # 1 min -> >5000 ug/m3
     # 5 min -> >2000 ug/m3
     # >10min -> >1000 ug/m3
 
-    lvl0_raw_df['time_delta'] = lvl0_raw_df['timestamp'].diff().value_counts(dropna = True).idxmax().total_seconds() / 60
-
+    #get time_delta (since data capping is dependent on time_delta of data [time delta between measurements])
+    #measure_count is frequency of measurements
+    measure_count = lvl0_raw_df.groupby(['serial', lvl0_raw_df['timestamp'].dt.year, lvl0_raw_df['timestamp'].dt.month, lvl0_raw_df['timestamp'].dt.day, lvl0_raw_df['timestamp'].dt.hour])['serial'].transform(len)
+    lvl0_raw_df['time_delta'] = 60 / measure_count
+    
+    #Apply data capping function through vectorization
     lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 10) & (lvl0_raw_df['mcpm1x0'] >= 1000), ['mcpm1x0']] = 1000
     lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 5) & (lvl0_raw_df['mcpm1x0'] >= 2000), ['mcpm1x0']] = 2000
     lvl0_raw_df.loc[(lvl0_raw_df['time_delta'] >= 1) & (lvl0_raw_df['mcpm1x0'] >= 5000), ['mcpm1x0']] = 5000
@@ -347,6 +370,8 @@ def level_one_raw(lvl0_raw_df):
     return lvl0_raw_df
 
 def level_one_hourly(lvl1_raw_df):
+    ### Refer back to documentation for level_zero_hourly 
+
     #group df by specific sensor and hour of data
     #lvl0_raw_df['timestamp'] = pd.to_datetime(lvl0_raw_df['timestamp'], format='%Y-%m-%d %H:%M:%S')
     grouped_df = lvl1_raw_df.groupby(['serial', lvl1_raw_df['timestamp'].dt.year, lvl1_raw_df['timestamp'].dt.month, lvl1_raw_df['timestamp'].dt.day, lvl1_raw_df['timestamp'].dt.hour])
