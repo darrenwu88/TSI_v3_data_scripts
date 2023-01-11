@@ -43,17 +43,16 @@ Main inputs: developer key(s), secret(s), data date params (start_date & end_dat
 
 OBJECTIVES for this week
 
-Keep updated/merged file for each device (run by run)
-#talk with mike and prakash about this as well
-
-add a flag in for suspect data during lvl 1 QA (device status is not support for v3 flat telemetry? not sure)
+include env + python interpreter documentation
+#plan to add .yaml file to unite python env 
 
 assuming we still have the 30 day rule, script continuously appends data week by week
+#potential solution could be uploading data to aws s3 buckets
 
 
-done when stable code and beginners can use it
+###done when stable code and beginners can use it
 
-make video, make sure you can use v2 when you are using v3
+
 '''
 
 import requests
